@@ -12,6 +12,8 @@ const maxErrors = 3
 
 // K8sVersion is the version that will be used to install kubernetes
 var K8sVersion = flag.String("k8s-version", "1.13.4-00", "The version of the k8s debian packages that will be used during provisioning")
+// K8sVersion is the version that will be used to install kubernetes
+var K8sCniVersion = flag.String("k8s-cni-version", "0.6.0-00", "The version of the k8s debian packages that will be used during provisioning")
 
 // NodeProvisioner provisions all basic packages to install docker, kubernetes and wireguard
 type NodeProvisioner struct {
@@ -80,6 +82,10 @@ func (provisioner *NodeProvisioner) prepareAndInstall() error {
 		return err
 	}
 	err = provisioner.preparePackages()
+	if err != nil {
+		return err
+	}
+	err = provisioner.updateAndInstallCniFix()
 	if err != nil {
 		return err
 	}
@@ -227,6 +233,17 @@ Pin-Priority: 1000
 	return nil
 }
 
+func (provisioner *NodeProvisioner) updateAndInstallCniFix() error {
+	provisioner.eventService.AddEvent(provisioner.node.Name, "Fixing cni... ")
+	_, err := provisioner.communicator.RunCmd(provisioner.node, "apt-get purge kubernetes-cni -y")
+	if err != nil {
+		return err
+	}
+
+
+
+	return nil
+}
 func (provisioner *NodeProvisioner) updateAndInstall() error {
 	provisioner.eventService.AddEvent(provisioner.node.Name, "updating packages")
 	_, err := provisioner.communicator.RunCmd(provisioner.node, "apt-get update")
@@ -235,8 +252,8 @@ func (provisioner *NodeProvisioner) updateAndInstall() error {
 	}
 
 	provisioner.eventService.AddEvent(provisioner.node.Name, "installing packages")
-	command := fmt.Sprintf("apt-get install -y docker-ce kubelet=%s kubeadm=%s kubectl=%s kubernetes-cni wireguard linux-headers-$(uname -r) linux-headers-virtual",
-		*K8sVersion, *K8sVersion, *K8sVersion)
+	command := fmt.Sprintf("apt-get install -y docker-ce kubelet=%s kubeadm=%s kubectl=%s kubernetes-cni=%s wireguard linux-headers-$(uname -r) linux-headers-virtual",
+		*K8sVersion, *K8sVersion, *K8sVersion, *K8sCniVersion)
 	_, err = provisioner.communicator.RunCmd(provisioner.node, command)
 	if err != nil {
 		return err
